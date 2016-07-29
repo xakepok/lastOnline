@@ -6,13 +6,20 @@ function lastOnline() {
     for ($i = 1; $i < 13; $i++) {
         if ($i != 5 && $i != 11) {
             $query .= "
-            (SELECT `d`.`name`, `r`.`status` FROM `#__rasp_online` as `r` LEFT JOIN `#__directions` as `d` ON (`r`.`dir`=`d`.`id`) WHERE `dir` = $i AND `dat`=CURRENT_DATE() AND `r`.`status`=(SELECT AVG(`status`) FROM `#__rasp_online` WHERE `dir` = $i AND `dat`=CURRENT_DATE() AND `num`=`r`.`num`) GROUP BY `dir` ORDER BY `d`.`name` DESC LIMIT 5)
+            SELECT `temp`.`did`, `temp`.`name`, CEIL(AVG(`temp`.`status`)) as `status`, MAX(`temp`.`status`) as `max` FROM (
+            (SELECT `d`.`id` as `did`, `d`.`name` as `name`, `r`.`status` as `status`
+            FROM `#__rasp_online` as `r`
+            LEFT JOIN `#__directions` as `d` ON (`r`.`dir`=`d`.`id`)
+            WHERE `dir` = $i AND `dat`=CURRENT_DATE() AND `r`.`arr`=(SELECT MAX(`arr`) FROM `#__rasp_online` WHERE `dir` = $i AND `dat`=CURRENT_DATE() AND `num`=`r`.`num`)
+            ORDER BY `arr`
+            DESC LIMIT 5) as `temp`)
             ";
         }
         if (($i != 12) && ($i != 5 && $i != 11)) $query .= "
             UNION
             ";
     }
+    //exit(var_dump($query));
     $db->setQuery($query);
     return $db->loadObjectList();
 }
@@ -22,20 +29,27 @@ $opozdaniya = lastOnline();
         <thead>
         <tr>
             <th><?=JText::_('MOD_LASTONLINE_DIRECTION')?></th>
-            <th><?=JText::_('MOD_LASTONLINE_LATENESS')?></th>
+            <th><?=JText::_('MOD_LASTONLINE_LATENESS_AVG')?></th>
+            <th><?=JText::_('MOD_LASTONLINE_LATENESS_MAX')?></th>
         </tr>
         </thead>
         <tbody>
 <?php
 foreach ($opozdaniya as $dir) {
     $status = $dir->status == '0' ? JText::_('MOD_LASTONLINE_STATUS_OK') : $dir->status.' '.JText::_('MOD_LASTONLINE_ARR_MINUTE');
+    $status_max = $dir->max == '0' ? JText::_('MOD_LASTONLINE_STATUS_OK') : $dir->max.' '.JText::_('MOD_LASTONLINE_ARR_MINUTE');
+    $url_dir = '/rasp/online?dir='.$dir->did.'&date='.date("Y-m-d");
     ?>
     <tr>
-        <td><?=$dir->name?></td>
+        <td><a href="<?=$url_dir?>"><?=$dir->name?></a></td>
         <td><?=$status?></td>
+        <td><?=$status_max?></td>
     </tr>
     <?php
 }
 ?>
         </tbody>
     </table>
+<?php if (JFactory::getApplication()->input->getString('view') != 'last_online') { ?>
+<a href="/rasp/online"><?=JText::_('MOD_LASTONLINE_SPOILER')?></a>
+<?php }?>
